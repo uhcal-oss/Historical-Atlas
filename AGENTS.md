@@ -3,9 +3,8 @@
 ## Quick start
 
 ```bash
-# Install dependencies (both frontend and server)
-cd src && npm install
-cd ../server && npm install
+# Install dependencies (server postinstall auto-installs src/)
+cd server && npm install
 
 # Start server (serves frontend static files + API)
 cd server && npm run serve

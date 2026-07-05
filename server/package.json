@@ -4,7 +4,8 @@
   "description": "histoAtlas server",
   "main": "server.js",
   "scripts": {
-    "serve": "node server"
+    "serve": "node server",
+    "postinstall": "cd ../src && npm install"
   },
   "author": "",
   "license": "ISC",
