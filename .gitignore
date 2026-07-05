@@ -11,4 +11,5 @@ src/libs/fontawesome-free-6.2.0-web
 .code-workspace
 .vscode/
 server/*.pem
+server/.env
 src/mail

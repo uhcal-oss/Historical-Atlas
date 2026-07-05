@@ -17,7 +17,7 @@ cd server && npm run serve
 | Path | Role |
 |---|---|
 | `src/` | Vanilla JS frontend (Leaflet + Turf.js + jQuery) |
-| `server/` | Express.js backend (MariaDB, JWT auth) |
+| `server/` | Express.js backend (MongoDB/Mongoose, JWT auth) |
 | `server/app.js:43` | Serves `src/` as static files, fallback to `src/index.html` |
 
 **Entry points:**
@@ -33,8 +33,8 @@ cd server && npm run serve
 ## Key details
 
 - **No build tooling.** No bundler, no linter, no formatter, no typecheck. No test suite (`npm test` is a placeholder).
-- **Config files (not tracked):** `src/config/config.json` (`serverUrl`, `mapboxAccessToken`), `server/params/config.json` (MariaDB creds, JWT secret, mail settings). Copy from the `.json` files already in those dirs.
-- **Database:** MariaDB (port 3306). JWT auth middleware at `server/middleware/auth.js`.
+- **Config files (not tracked):** `src/config/config.json` (`serverUrl`, `mapboxAccessToken`), `server/params/config.json` (JWT secret, mail settings), `server/.env` (`MONGODB_URI`). Copy from the `.json` files already in those dirs.
+- **Database:** MongoDB. URI from `server/.env` (`MONGODB_URI`). Mongoose models in `server/models/`. JWT auth middleware at `server/middleware/auth.js`.
 - **i18n:** `src/dictionary/` — `dictionary_en.json` and `dictionary_fr.json` loaded by `dictionary.js`.
 - **CSS:** `src/histoAtlas.css` (main), `src/timeSlider.css`, `src/styles/index.css` (landing page).
 - **Cache busting:** All script/style URLs use `?v=10` or `?v=10.1` query params — update these when modifying referenced files.

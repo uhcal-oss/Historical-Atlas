@@ -1,89 +1,34 @@
 ﻿const fs = require('fs');
-const mariadb = require('mariadb');
+const mongoose = require('mongoose');
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
-/*
- * Connecte the the MariaBD database 
- * @return                                         The database connection
- */
-exports.connectBDD = () => 
-{
-  return new Promise(function(resolve, reject) 
-  {
-    fs.readFile("params/config.json", "utf8", function (err,data) {
-      if (err)
-      { 
-        console.log("Erreur lecture fichier config");
-        console.log(err);
-        return reject();
-      }
+exports.connectDB = () => {
+  return new Promise((resolve, reject) => {
+    if (mongoose.connection.readyState === 1) return resolve(mongoose.connection);
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return reject(new Error('MONGODB_URI not set in .env'));
+    mongoose.connect(uri)
+      .then(() => resolve(mongoose.connection))
+      .catch(err => reject(err));
+  });
+};
 
-      let dataObj = JSON.parse(data);
-
-
-      mariadb.createConnection({
-        host: dataObj["bdd"]["host"],
-        user: dataObj["bdd"]["user"],
-        password: dataObj["bdd"]["password"],
-        database : dataObj["bdd"]["database"],
-        port : dataObj["bdd"]["port"]
-       }).then(conn => {
-        resolve(conn);
-      })
-      .catch(err => {
-        console.log("Connexion rejetée");
-        console.log(dataObj);
-        reject()
-      });
+exports.getTokenKey = () => {
+  return new Promise((resolve, reject) => {
+    fs.readFile("params/config.json", "utf8", (err, data) => {
+      if (err) return reject(err);
+      const dataObj = JSON.parse(data);
+      resolve(dataObj["tokenKey"]);
     });
   });
-}
+};
 
-/*
- * Get the token key from config
- * @return                                         The token key
- */
-exports.getTokenKey = () => 
-{
-  return new Promise(function(resolve, reject) 
-  {
-    fs.readFile("params/config.json", "utf8", function (err,data) {
-      if (err)
-      {
-        console.log(err); 
-        reject();
-      }
-      else
-      {
-        let dataObj = JSON.parse(data);
-        
-        resolve(dataObj["tokenKey"]);
-      }
+exports.getMailInfos = () => {
+  return new Promise((resolve, reject) => {
+    fs.readFile("params/config.json", "utf8", (err, data) => {
+      if (err) return reject(err);
+      const dataObj = JSON.parse(data);
+      resolve(dataObj["mail"]);
     });
   });
-}
-
-/*
- * Get the mail infos
- * @return                                         The token key
- */
-exports.getMailInfos = () => 
-{
-  return new Promise(function(resolve, reject) 
-  {
-    fs.readFile("params/config.json", "utf8", function (err,data) {
-      if (err)
-      {
-        console.log(err); 
-        reject();
-      }
-      else
-      {
-        console.log("OK config");
-
-        let dataObj = JSON.parse(data);
-        
-        resolve(dataObj["mail"]);
-      }
-    });
-  });
-}
+};

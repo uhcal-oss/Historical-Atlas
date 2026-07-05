@@ -1,417 +1,245 @@
-﻿const mariadb = require('mariadb');
-const config = require('../params/config');
+﻿const config = require('../params/config');
 const user = require('./user');
 const fs = require('fs');
 const url = require('url');
 const log = require("./log");
 
-/*
- * Save a map
- * @param {String}                      req.body.user                       The user name
- * @param {String}                      req.body.name                       The name in database
- * @param {String}                      req.body.fileName                   The file name 
- * @param {String}                      req.body.content                    Content of the file to save (json stringify)
- * @return                                                                  Object with insered id
- */
-exports.save = (req, res, next) => 
-{
+const Map = require('../models/Map');
+
+exports.save = (req, res, next) => {
   let folderUrl = `files/${req.body.user}`;
   let fileUrl = `${folderUrl}/${req.body.fileName}.json`;
 
-  // Create folder if net exist
-  if (!fs.existsSync(folderUrl)){
+  if (!fs.existsSync(folderUrl)) {
     fs.mkdirSync(folderUrl);
   }
 
-  // Create file
-  fs.writeFile(fileUrl, req.body.content, function (err) 
-  {
+  fs.writeFile(fileUrl, req.body.content, function(err) {
     if (err) return res.status(500).json({ error: 'SERVER_CREATION_SAVE_FILE_FAIL' });
 
     user.getUserIdFromName(req.body.user).then((userId) => {
+      config.connectDB().then(() => {
+        log.log("saveMap", { user: req.body.user, fileUrl: fileUrl });
 
-      config.connectBDD().then((db) => {
+        if (req.body.exist) {
+          Map.updateOne(
+            { name: req.body.name, user: userId },
+            { lang: req.body.lang, category: req.body.type, update_date: new Date() }
+          ).then(() => {
+            res.status(200).json({ insertId: req.body.id });
+          }).catch(error => { res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' }) });
+        } else {
+          const map = new Map({
+            user: userId,
+            userName: req.body.user,
+            name: req.body.name,
+            url: fileUrl,
+            lang: req.body.lang,
+            category: req.body.type,
+            update_date: new Date(),
+            creation_date: new Date()
+          });
 
-        log.log("saveMap", {user : req.body.user, fileUrl : fileUrl});
-
-        if(req.body.exist)
-        {
-          let sql = `UPDATE maps SET lang = '${req.body.lang}', category = '${req.body.type}', update_date = '${new Date().toISOString().slice(0, 19).replace("T", " ")}' WHERE name = '${req.body.name}' AND user_id = '${userId}'`;
-
-          db.query(sql).then((result) => {
-
-            db.end();
-            res.status(200).json({insertId : req.body.id});
-
-          }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' })});
+          map.save().then((result) => {
+            res.status(200).json({ insertId: result._id });
+          }).catch(error => { res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' }) });
         }
-        else
-        {
-          let sql = `INSERT INTO maps (user_id, name, url, lang, category, update_date, creation_date) VALUES ('${userId}', '${req.body.name}', '${fileUrl}', '${req.body.lang}', '${req.body.type}', '${new Date().toISOString().slice(0, 19).replace("T", " ")}', '${new Date().toISOString().slice(0, 19).replace("T", " ")}')`;
-
-          db.query(sql).then((result) => {
-
-            db.end();
-            res.status(200).json({insertId : result.insertId});
-
-          }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' })});
-        }
-
-      }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
     }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
   });
 }
 
-/*
- * Check if a file is exist
- * @param {String}                      req.body.user                       The user name
- * @param {String}                      req.body.name                       The name in database
- * @return {Object}                                                         Object with exist state and id of the map
- */
-exports.checkIfFileExist = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `SELECT maps.* FROM maps INNER JOIN users ON users.id = maps.user_id AND users.name="${req.body.user}" WHERE maps.name="${req.body.name}"`;
-
-    db.query(sql).then((result) => {
-
-      db.end();
-      if(result.length > 0)
-      {
-        res.status(200).json({exist : true, id: result[0]["id"]});
+exports.checkIfFileExist = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.findOne({ userName: req.body.user, name: req.body.name }).then(map => {
+      if (map) {
+        res.status(200).json({ exist: true, id: map._id });
+      } else {
+        res.status(200).json({ exist: false, id: null });
       }
-      else
-      {
-        res.status(200).json({exist : false, id: null});
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+}
+
+exports.getVisibleMapsOfUser = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.find({ userName: req.params.user }).sort({ update_date: -1 }).then(userMaps => {
+      res.status(200).json({ userMaps: userMaps });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+}
+
+exports.getVisibleMaps = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.find({ public: true, userName: { $ne: req.params.user } }).sort({ update_date: -1 }).then(publicMaps => {
+      const result = publicMaps.map(m => ({
+        ...m.toJSON(),
+        user_name: m.userName
+      }));
+      res.status(200).json({ publicMaps: result });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+}
+
+exports.getMap = (req, res, next) => {
+  let userParam = url.parse(req.url, true).query.user;
+  let editMode = url.parse(req.url, true).query.editMode;
+  let mapbox = url.parse(req.url, true).query.mapbox;
+
+  config.connectDB().then(() => {
+    let query = { _id: req.params.id };
+    if (userParam) {
+      if (editMode == true || editMode == "true") {
+        query.$or = [
+          { userName: userParam },
+          { public: true, public_editable: true }
+        ];
+      } else {
+        query.$or = [
+          { userName: userParam },
+          { public: true }
+        ];
       }
+    } else {
+      query.public = true;
+    }
 
-    }).catch(error => {db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
+    Map.findOne(query).then(map => {
+      if (!map) return res.status(500).json({ error: 'La carte est inaccessible' });
 
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      this.getMapManageResult(map, editMode, mapbox, userParam, res);
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/*
- * Get all maps of an user
- * @param {String}                      req.body.user                       The user name (null if not logged)
- * @return {Object}                                                         Object with all maps of user and public maps
- */
-exports.getVisibleMapsOfUser = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
+exports.getMapGuest = (req, res, next) => {
+  let editMode = url.parse(req.url, true).query.editMode;
+  let mapbox = url.parse(req.url, true).query.mapbox;
 
-    let sql = `SELECT maps.* FROM maps INNER JOIN users ON users.id = maps.user_id AND users.name="${req.params.user}" `;
+  config.connectDB().then(() => {
+    let query = { _id: req.params.id };
+    if (editMode == true || editMode == "true") {
+      query.public = true;
+      query.public_editable = true;
+    } else {
+      query.public = true;
+    }
 
-    db.query(sql).then((userMaps) => {
+    Map.findOne(query).then(map => {
+      if (!map) return res.status(500).json({ error: 'La carte est inaccessible' });
 
-      db.end();
-      res.status(200).json({userMaps : userMaps});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      this.getMapManageResult(map, editMode, mapbox, "", res);
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/*
- * Get all visible of an user
- * @param {String}                      req.body.user                       The user name (null if not logged)
- * @return {Object}                                                         Object with all maps of user and public maps
- */
-exports.getVisibleMaps = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `SELECT maps.*, users.name as user_name FROM maps 
-                INNER JOIN users ON users.id = maps.user_id AND users.name<>"${req.params.user}"
-                WHERE maps.public`
-
-    db.query(sql).then((publicMaps) => {
-
-      db.end();
-      res.status(200).json({publicMaps : publicMaps});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
-}
-
-/*
- * Get a map
- * @param {Number}                      req.params.id                       The id of the map
- * @param {String}                      req.query.user                      The user name
- * @param {Boolean}                     req.query.editMode                  Edit Mode
- * @return {Object}                                                         Object with name and map data
- */
-exports.getMap = (req, res, next) => 
-{
-  let user = url.parse(req.url,true).query.user;
-  let editMode = url.parse(req.url,true).query.editMode;
-  let mapbox = url.parse(req.url,true).query.mapbox;
-
-  let sql = ``;
-
-  if(editMode == true || editMode == "true")
-  {
-    sql = `SELECT maps.url, maps.name, maps.views, users.name as user_name, maps.lang, maps.category FROM maps 
-            LEFT JOIN users ON users.id = maps.user_id 
-            WHERE maps.id = ${req.params.id} AND (users.name = "${user}" OR (maps.public AND maps.public_editable))`;
-  }
-  else
-  {
-    sql = `SELECT maps.url, maps.name, maps.views, users.name as user_name, maps.lang, maps.category FROM maps 
-            LEFT JOIN users ON users.id = maps.user_id 
-            WHERE maps.id = ${req.params.id} AND (users.name = "${user}" OR maps.public)`;
+exports.getMapManageResult = (map, editMode, mapbox, userName, res) => {
+  let views = map.views;
+  if (editMode == false || editMode == "false" || map.userName != userName) {
+    views++;
   }
 
-  this.getMapManage(sql, req.params.id, editMode, mapbox, user, res);
-}
-
-/*
- * Get a map in guest mod
- * @param {Number}                      req.params.id                       The id of the map
- * @param {String}                      req.query.user                      The user name
- * @param {Boolean}                     req.query.editMode                  Edit Mode
- * @param {Boolean}                     req.query.mapbox                    True if is mapbox view
- * @return {Object}                                                         Object with map data
- */
-exports.getMapGuest = (req, res, next) => 
-{
-  let editMode = url.parse(req.url,true).query.editMode;
-  let mapbox = url.parse(req.url,true).query.mapbox;
-  let sql = "";
-
-  if(editMode == true || editMode == "true")
-  {
-    sql = `SELECT maps.url, maps.name, maps.views, users.name as user_name, maps.lang, maps.category FROM maps 
-            LEFT JOIN users ON users.id = maps.user_id 
-            WHERE maps.id = ${req.params.id} AND (maps.public AND maps.public_editable)`;
-  }
-  else
-  {
-    sql = `SELECT maps.url, maps.name, maps.views, users.name as user_name, maps.lang, maps.category FROM maps 
-            LEFT JOIN users ON users.id = maps.user_id 
-            WHERE maps.id = ${req.params.id} AND maps.public`;
-  }
-
-  this.getMapManage(sql, req.params.id, editMode, mapbox, "", res);
-}
-
-/*
- * Get a map in guest mod
- * @param {String}                      sql                  The sql query
- * @param {Number}                      id                   The map id
- * @param {Boolean}                     editMode             True if editMode 
- * @param {String}                      userName             The user name
- * @param {Boolean}                     mapbox               True if is mapbox view
- * @param {Boolean}                     res                  Result manager
- * @return {Object}                                          Object with map data
- */
-exports.getMapManage = (sql, id, editMode, mapbox, userName, res) =>
-{
-  config.connectBDD().then((db) => {
-
-    db.query(sql).then((result) => {
-
-      if(result.length == 0) return res.status(500).json({ error: 'La carte est inaccessible' });
-
-      let views = result[0]['views'];
-      if(editMode == false || editMode == "false" || result[0]['user_name'] != userName)
-      {
-        views ++;
+  Map.updateOne({ _id: map._id }, { views: views }).then(() => {
+    fs.readFile(map.url, 'utf8', function(err, data) {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({ error: 'SERVER_READ_FILE_FAIL' });
       }
 
-      sqlUpdate = `UPDATE maps SET views = ${views} WHERE maps.id = ${id}`;
-
-      db.query(sqlUpdate).then((resultUpdate) => {
-
-        fs.readFile(result[0]['url'], 'utf8', function (err,data) {
-          if (err)
-          { 
-            console.log(err); 
-            db.end();
-            return res.status(500).json({ error: 'SERVER_READ_FILE_FAIL' });
-          }
-          
-          db.end();
-          log.log("getMap", {name : result[0]['name'], editMode : editMode, mapbox : mapbox, url : result[0]['url']});
-          res.status(200).json({data : data, views : views, name : result[0]['name'], lang : result[0]['lang'], type : result[0]['category'], userName : result[0]['user_name']});
-        });
-
-     }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      log.log("getMap", { name: map.name, editMode: editMode, mapbox: mapbox, url: map.url });
+      res.status(200).json({
+        data: data,
+        views: views,
+        name: map.name,
+        lang: map.lang,
+        type: map.category,
+        userName: map.userName
+      });
+    });
+  }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
 }
 
-/*
- * Change the public state of a map
- * @param {Number}                      req.params.id                       The id of the map
- * @param {String}                      req.query.user                      The user name
- * @param {Boolean}                     req.query.public                    Public state
- * @return {Object}                                                         Object empty
- */
-exports.changePublicState = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `UPDATE maps 
-              INNER JOIN users ON users.id = maps.user_id AND users.name = "${req.body.user}"
-              SET public = ${req.body.public} WHERE maps.id = ${req.body.id}`
-
-    db.query(sql).then((result) => {
-
-      db.end();
+exports.changePublicState = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.updateOne(
+      { _id: req.body.id, userName: req.body.user },
+      { public: req.body.public }
+    ).then(() => {
       res.status(200).json({});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/*
- * Change the public editable state of a map
- * @param {Number}                      req.params.id                       The id of the map
- * @param {String}                      req.query.user                      The user name
- * @param {Boolean}                     req.query.public                    Public state
- * @return {Object}                                                         Object empty
- */
-exports.changeEditableState = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `UPDATE maps 
-              INNER JOIN users ON users.id = maps.user_id AND users.name = "${req.body.user}"
-              SET public_editable = ${req.body.public_editable} WHERE maps.id = ${req.body.id}`
-
-    db.query(sql).then((result) => {
-
-      db.end();
+exports.changeEditableState = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.updateOne(
+      { _id: req.body.id, userName: req.body.user },
+      { public_editable: req.body.public_editable }
+    ).then(() => {
       res.status(200).json({});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/* 
- * Delete a file and update database
- * @param {Number}                      req.params.id                       The id of the map
- * @param {String}                      req.query.user                      The user name
- * @return {Object}                                                         Object empty
- */
-exports.delete = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
+exports.delete = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.findOne({ _id: req.body.id }).then(map => {
+      if (!map) return res.status(500).json({ error: 'SERVER_QUERY_FAIL' });
 
-    let sqlSelect = `SELECT url FROM maps WHERE id = ${req.body.id}`;
+      let fileUrl = map.url;
 
-    db.query(sqlSelect).then((resultSelect) => {
-
-      if(resultSelect.length == 0) return res.status(500).json({ error: 'SERVER_QUERY_FAIL' });
-
-      let fileUrl = resultSelect[0]['url'];
-
-      let sql = `DELETE maps.* FROM maps
-                INNER JOIN users ON users.id = maps.user_id AND users.name = "${req.body.user}"
-                WHERE maps.id = ${req.body.id}`;
-                
-      db.query(sql).then((result) => {
-
+      Map.deleteOne({ _id: req.body.id, userName: req.body.user }).then(() => {
         fs.unlink(fileUrl, (err) => {
+          log.log("delete", { name: req.body.user, mapId: req.body.id, fileUrl: fileUrl });
 
-          log.log("delete", {name : req.body.user, mapId : req.body.id, fileUrl : fileUrl});
-          db.end();
-          
-          if (err) 
-          {
-            return res.status(500).json({ error: 'Impossible de supprimer le fichier' })
+          if (err) {
+            return res.status(500).json({ error: 'Impossible de supprimer le fichier' });
           }
 
           res.status(200).json({});
         });
-
-      }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/*
- * Create a new map action
- */
-exports.createNewMap = (req, res, next) => 
-{
+exports.createNewMap = (req, res, next) => {
   log.log("createNewMap", {});
 }
 
-/*
- * Rename a map
- * @param {String}                      req.body.user                       The user name
- * @param {String}                      req.body.newName                    The new name in database
- * @param {String}                      req.body.fileName                   The file name 
- * @param {String}                      req.body.id                         Id of the map
- */
-exports.rename = (req, res, next) => 
-{
+exports.rename = (req, res, next) => {
   let folderUrl = `files/${req.body.user}`;
   let fileUrl = `${folderUrl}/${req.body.fileName}.json`;
 
-  config.connectBDD().then((db) => {
+  config.connectDB().then(() => {
+    Map.findOne({ _id: req.body.id }).then(map => {
+      if (map) {
+        let oldUrl = map.url;
 
-    let sqlSelect = `SELECT maps.url as url FROM maps LEFT JOIN users ON users.id = maps.user_id WHERE maps.id = ${req.body.id}`;
-
-    db.query(sqlSelect).then((resultSelect) => {
-
-      if(resultSelect.length > 0)
-      {
-        let oldUrl = resultSelect[0]['url'];
-
-        let sql = `UPDATE maps SET name = '${req.body.newName}', url = '${fileUrl}' WHERE maps.id = ${req.body.id}`
-
-        db.query(sql).then((result) => {
-
-          fs.rename(oldUrl, fileUrl, function()
-          {
-              db.end();
-
-              log.log("renameMap", {name : req.body.user, oldFileUrl : oldUrl, newFileUrl : fileUrl, new_name : req.body.newName, id : req.body.id});
-
-              res.status(200).json({});
+        Map.updateOne(
+          { _id: req.body.id },
+          { name: req.body.newName, url: fileUrl }
+        ).then(() => {
+          fs.rename(oldUrl, fileUrl, function() {
+            log.log("renameMap", { name: req.body.user, oldFileUrl: oldUrl, newFileUrl: fileUrl, new_name: req.body.newName, id: req.body.id });
+            res.status(200).json({});
           });
-
-        }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
-      }
-      else
-      {
-        db.end(); 
+        }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+      } else {
         res.status(500).json({ error: 'SERVER_QUERY_FAIL' });
       }
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' })});
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }
 
-/*
- * Change the category of a map
- * @param {String}                      req.body.user                       The user name
- * @param {String}                      req.body.newCategory                The new category
- * @param {String}                      req.body.fileName                   The file name 
- * @param {String}                      req.body.id                         Id of the map
- */
-exports.changeCategory = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `UPDATE maps SET category = '${req.body.newCategory}' WHERE maps.id = ${req.body.id}`
-
-    db.query(sql).then((result) => {
-
-      db.end();
-      log.log("renameMap", {name : req.body.user, newCategory : req.body.newCategory, id : req.body.id});
+exports.changeCategory = (req, res, next) => {
+  config.connectDB().then(() => {
+    Map.updateOne(
+      { _id: req.body.id },
+      { category: req.body.newCategory }
+    ).then(() => {
       res.status(200).json({});
-
-    }).catch(error => { db.end(); res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
-
-  }).catch((e) => { db.end(); res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      log.log("renameMap", { name: req.body.user, newCategory: req.body.newCategory, id: req.body.id });
+    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
+  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
 }

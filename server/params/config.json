@@ -1,12 +1,4 @@
 {
-  "bdd" : 
-  {
-    "host" : "localhost",
-    "user" : "",
-    "password" : "",
-    "database" : "",
-    "port" : 3306
-  },
   "tokenKey" : "tokenTest",
   "mail" : 
   {

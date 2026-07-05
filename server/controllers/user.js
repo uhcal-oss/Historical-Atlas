@@ -1,191 +1,130 @@
-﻿const mariadb = require('mariadb');
-const bcrypt = require('bcrypt');
+﻿const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const config = require('../params/config');
 const nodemailer = require('nodemailer');
 const url = require('url');
 const { v4: uuidv4 } = require('uuid');
 const log = require("./log");
-var http = require("https");
 
-/*
- * Log an user, check if password and user are correct
- * @param {String}                      req.body.name                       The user name or mail
- * @param {String}                      req.body.password                   The password
- * @return                                                                  User token
- */
-exports.login = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
+const User = require('../models/User');
+const PasswordReset = require('../models/PasswordReset');
+const Newsletter = require('../models/Newsletter');
 
-    let sql = `SELECT * FROM users WHERE (name = "${req.body.name}" OR mail="${req.body.name}")`;
-
-    db.query(sql).then((result) => {
-      //if (err) { console.log(err); res.status(500).send({ error: err }) };
-
-      if(result.length > 0)
-      {
-        let userPassword = result[0]['password'];
-        let userName = result[0]['name'];
-
-        bcrypt.compare(req.body.password, userPassword)
-          .then(valid => {
-            if (!valid) {
-              return res.status(401).json({ error: 'SERVER_USER_OR_PASS_INVALID' });
-            }
-
-            // Update connexion date
-            let sqlDateUpdate = `UPDATE users SET login_date = '${new Date().toISOString().slice(0, 19).replace("T", " ")}' WHERE (name = "${req.body.name}" OR mail="${req.body.name}")`;
-
-            //console.log(sqlDateUpdate);
-
-            db.query(sqlDateUpdate).then((result) => {
-
-              db.end();
-              log.log("login", {name : req.body.name, succes : true});
-
-              config.getTokenKey().then((tokenKey) => {
-                res.status(201).json({
-                  userId: userName,
-                  token: jwt.sign(
-                    { userId: userName },
-                    tokenKey,
-                    { expiresIn: '24h' }
-                  )
-                });
-              }).catch(error => res.status(500).json({ error : "SERVER_READ_CONFIG_FAIL" }));
-
-            }).catch(error => res.status(500).json({ error : 'SERVER_DATABASE_UPDATE_FAIL' }));
-          }).catch(error => res.status(500).json({ error }));
-      }
-      else
-      {
-        log.log("login", {name : req.body.name, succes : false});
+exports.login = (req, res, next) => {
+  config.connectDB().then(() => {
+    User.findOne({
+      $or: [{ name: req.body.name }, { mail: req.body.name }]
+    }).then(user => {
+      if (!user) {
+        log.log("login", { name: req.body.name, succes: false });
         return res.status(401).json({ error: 'SERVER_USER_OR_PASS_INVALID' });
       }
-    }).catch(error => { res.status(500).json({ error }) });
-  });
+
+      bcrypt.compare(req.body.password, user.password).then(valid => {
+        if (!valid) {
+          log.log("login", { name: req.body.name, succes: false });
+          return res.status(401).json({ error: 'SERVER_USER_OR_PASS_INVALID' });
+        }
+
+        user.login_date = new Date();
+        user.save().then(() => {
+          log.log("login", { name: req.body.name, succes: true });
+
+          config.getTokenKey().then(tokenKey => {
+            res.status(201).json({
+              userId: user.name,
+              token: jwt.sign(
+                { userId: user.name },
+                tokenKey,
+                { expiresIn: '24h' }
+              )
+            });
+          }).catch(error => res.status(500).json({ error: "SERVER_READ_CONFIG_FAIL" }));
+        }).catch(error => res.status(500).json({ error: 'SERVER_DATABASE_UPDATE_FAIL' }));
+      }).catch(error => res.status(500).json({ error }));
+    }).catch(error => res.status(500).json({ error }));
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Register a new user in database
- * @param {String}                      req.body.name                       The user name
- * @param {String}                      req.body.password                   The password
- * @param {String}                      req.body.mail                       The mail adress
- * @param {Boolean}                     req.body.newsletter                 True if register to newlettre
- * @return                                                                  User token
- */
-exports.registration = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    bcrypt.hash(req.body.password, 10).then(hash => {
-
-      let sql = `SELECT * FROM users WHERE name = "${req.body.name}"`;
-
-      db.query(sql).then(result => {
-
-        if(result.length > 0)
-        {
-          return res.status(500).json({ error: "SERVER_USER_NAME_NOT_AVAILABLE" })
+exports.registration = (req, res, next) => {
+  bcrypt.hash(req.body.password, 10).then(hash => {
+    config.connectDB().then(() => {
+      User.findOne({ name: req.body.name }).then(userByName => {
+        if (userByName) {
+          return res.status(500).json({ error: "SERVER_USER_NAME_NOT_AVAILABLE" });
         }
-        else
-        {
-          let sql = `SELECT * FROM users WHERE mail = "${req.body.mail}"`;
 
-          db.query(sql).then(result => {
+        User.findOne({ mail: req.body.mail }).then(userByMail => {
+          if (userByMail) {
+            return res.status(500).json({ error: "SERVER_MAIL_NOT_AVAILABLE" });
+          }
 
-            if(result.length > 0)
-            {
-              return res.status(500).json({ error: "SERVER_MAIL_NOT_AVAILABLE" })
-            }
-            else
-            {
-              let sql = `INSERT INTO users (name, password, mail, admin, lang, newsletter, registration_date, login_date) VALUES ('${req.body.name}', '${hash}', '${req.body.mail}', 0, '${req.body.lang}', ${req.body.newsletter}, '${new Date().toISOString().slice(0, 19).replace('T', ' ')}', '${new Date().toISOString().slice(0, 19).replace('T', ' ')}')`;
-              // connection.escape(${req.body.name})
-              db.query(sql).then(result => {
-
-                db.end();
-                log.log("registration", {name : req.body.name, mail : req.body.mail, lang : req.body.lang, newsletter : req.body.newsletter, succes : true});
-
-                config.getTokenKey().then((tokenKey) => {
-                  res.status(200).json({
-                    userId: req.body.name,
-                    token: jwt.sign(
-                      { userId: req.body.name },
-                      tokenKey,
-                      { expiresIn: '24h' }
-                    )
-                  });
-                }).catch(error => res.status(500).json({ error : "SERVER_READ_CONFIG_FAIL" }));
-              }).catch(error => { db.end(); log.log("registration", {name : req.body.name, mail : req.body.mail, lang : req.body.lang, newsletter : req.body.newsletter, succes : false}); res.status(500).json({ error: 'SERVER_QUERY_CREATION_FAIL' }) });
-            }
-          }).catch(error => { 
-            log.log("registration", {name : req.body.name, mail : req.body.mail, lang : req.body.lang, newsletter : req.body.newsletter, succes : false});
-            db.end(); res.status(500).send({ error: 'SERVER_QUERY_FAIL' }) 
+          const now = new Date();
+          const user = new User({
+            name: req.body.name,
+            password: hash,
+            mail: req.body.mail,
+            admin: false,
+            lang: req.body.lang,
+            newsletter: req.body.newsletter,
+            registration_date: now,
+            login_date: now
           });
-        }
-      }).catch(error => { 
-        log.log("registration", {name : req.body.name, mail : req.body.mail, lang : req.body.lang, newsletter : req.body.newsletter, succes : false});
-        db.end(); res.status(500).send({ error: 'SERVER_QUERY_FAIL' }) 
+
+          user.save().then(() => {
+            log.log("registration", { name: req.body.name, mail: req.body.mail, lang: req.body.lang, newsletter: req.body.newsletter, succes: true });
+
+            config.getTokenKey().then(tokenKey => {
+              res.status(200).json({
+                userId: req.body.name,
+                token: jwt.sign(
+                  { userId: req.body.name },
+                  tokenKey,
+                  { expiresIn: '24h' }
+                )
+              });
+            }).catch(error => res.status(500).json({ error: "SERVER_READ_CONFIG_FAIL" }));
+          }).catch(error => {
+            log.log("registration", { name: req.body.name, mail: req.body.mail, lang: req.body.lang, newsletter: req.body.newsletter, succes: false });
+            res.status(500).json({ error: 'SERVER_QUERY_CREATION_FAIL' });
+          });
+        }).catch(error => {
+          log.log("registration", { name: req.body.name, mail: req.body.mail, lang: req.body.lang, newsletter: req.body.newsletter, succes: false });
+          res.status(500).send({ error: 'SERVER_QUERY_FAIL' });
+        });
+      }).catch(error => {
+        log.log("registration", { name: req.body.name, mail: req.body.mail, lang: req.body.lang, newsletter: req.body.newsletter, succes: false });
+        res.status(500).send({ error: 'SERVER_QUERY_FAIL' });
       });
-    }).catch(error => { res.status(500).json({ error }) });
-  });
+    }).catch(error => res.status(500).json({ error }));
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Get user id from a user name
- * @param {String}                      name                       The user name
- * @return                                                         User ID
- */
-exports.getUserIdFromName = (name) => 
-{
-  return new Promise(function(resolve, reject) 
-  {
-    config.connectBDD().then((db) => {
-      let sql = `SELECT * FROM users WHERE name = "${name}"`;
-
-      db.query(sql).then(result => {
-          
-        db.end();
-        if(result.length > 0)
-        {
-          resolve(result[0]['id']);
-        }
-        else
-        {
+exports.getUserIdFromName = (name) => {
+  return new Promise((resolve, reject) => {
+    config.connectDB().then(() => {
+      User.findOne({ name: name }).then(user => {
+        if (user) {
+          resolve(user._id);
+        } else {
           reject();
         }
-      }).catch(error => { db.end(); reject() });
-    }).catch(error => { reject() });
+      }).catch(error => reject(error));
+    }).catch(error => reject(error));
   });
 }
 
-/*
- * Check if user is valid (if security is OK return 200)
- */
-exports.checkValidUser = (req, res, next) => 
-{
+exports.checkValidUser = (req, res, next) => {
   res.status(200).json({});
 }
 
-/*
- * Send mail
- * @param {String}                      req.body.name                    The user name of sender
- * @param {String}                      req.body.message                 The message content
- * @param {String}                      req.body.mail                    Mail of the sender
- * @param {Boolean}                     req.body.title                   Mail title
- * @return                                                               empty
- */
-exports.sendMail = (req, res, next) => 
-{
-  config.getMailInfos().then((mailInfos) => {
-
-    let mailContent = `mail : ${req.body.mail} \n name : ${req.body.name} \n \n ${req.body.message}`
+exports.sendMail = (req, res, next) => {
+  config.getMailInfos().then(mailInfos => {
+    let mailContent = `mail : ${req.body.mail} \n name : ${req.body.name} \n \n ${req.body.message}`;
 
     var transporter = nodemailer.createTransport({
       host: mailInfos['host'],
-      port: mailInfos['port'],  //25,
+      port: mailInfos['port'],
       auth: {
         user: mailInfos['auth_user'],
         pass: mailInfos['auth_pass'],
@@ -195,128 +134,77 @@ exports.sendMail = (req, res, next) =>
       },
     });
     var mailOptions = {
-      from: req.body.mail, 
-      to: mailInfos['to'], 
-      subject: "[HistoAtlas] " + req.body.title, 
+      from: req.body.mail,
+      to: mailInfos['to'],
+      subject: "[HistoAtlas] " + req.body.title,
       text: mailContent
     };
 
-    transporter.sendMail(mailOptions, function(error, info){
+    transporter.sendMail(mailOptions, function(error, info) {
       if (error) {
-        res.status(500).send({ });
+        res.status(500).send({});
       } else {
-        //console.log('Email sent: ' + info.response);
-        res.status(200).send({ });
+        res.status(200).send({});
       }
     });
-
-  }).catch(error => res.status(500).send({ }));
+  }).catch(error => res.status(500).send({}));
 }
 
-/*
- * Get mail adress
- * @param {String}                      user                             The user name
- * @return                                                               The email adresse of user
- */
-exports.getMail  = (req, res, next) => 
-{
-  let userName = url.parse(req.url,true).query.user;
+exports.getMail = (req, res, next) => {
+  let userName = url.parse(req.url, true).query.user;
 
-  config.connectBDD().then((db) => {
-    let sql = `SELECT * FROM users WHERE name = "${userName}"`;
-
-    db.query(sql).then(result => {
-        
-      db.end();
-      if(result.length > 0)
-      {
-        res.status(200).send({ mail : result[0]['mail']});
+  config.connectDB().then(() => {
+    User.findOne({ name: userName }).then(user => {
+      if (user) {
+        res.status(200).send({ mail: user.mail });
+      } else {
+        res.status(500).send({});
       }
-      else
-      {
-        res.status(500).send({ });
-      }
-
-    }).catch(error => { db.end(); res.status(500).send({ }); });
-  }).catch(error => { res.status(500).send({ }); });
+    }).catch(error => res.status(500).send({}));
+  }).catch(error => res.status(500).send({}));
 }
 
-/*
- * Set mail adress
- * @param {String}                      req.body.mail                    The new mail adress
- * @param {String}                      req.body.name                    The user name
- * @return                                                               empty
- */
-exports.changeMail = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `UPDATE users SET mail = "${req.body.mail}" WHERE name = "${req.body.user}"`;
-
-    db.query(sql).then(result => {
-      db.end();
-
+exports.changeMail = (req, res, next) => {
+  config.connectDB().then(() => {
+    User.updateOne({ name: req.body.user }, { mail: req.body.mail }).then(() => {
       res.status(200).send({});
-
-    }).catch(error => { db.end(); res.status(500).send({ }); });
-  }).catch(error => { res.status(500).send({ }); });
+    }).catch(error => res.status(500).send({}));
+  }).catch(error => res.status(500).send({}));
 }
 
-/*
- * Change the password
- * @param {String}                      req.body.password                    The new password
- * @return                                                               empty
- */
-exports.changePassword = (req, res, next) => 
-{
+exports.changePassword = (req, res, next) => {
   bcrypt.hash(req.body.password, 10).then(hash => {
-
-    config.connectBDD().then((db) => {
-
-      let sql = `UPDATE users SET password = "${hash}" WHERE name = "${req.body.user}"`;
-
-      db.query(sql).then(result => {
-        db.end();
-
+    config.connectDB().then(() => {
+      User.updateOne({ name: req.body.user }, { password: hash }).then(() => {
         res.status(200).send({});
-
-      }).catch(error => { db.end(); res.status(500).send({ }); });
-    }).catch(error => { res.status(500).send({ }); });
-  }).catch(error => { res.status(500).json({ error }) });
+      }).catch(error => res.status(500).send({}));
+    }).catch(error => res.status(500).send({}));
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Forgot password : generate key and send mail
- * @param {String}                      req.body.userName                    The target user name or mail
- * @return                                                                   Empty
- */
-exports.forgotPassword = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
+exports.forgotPassword = (req, res, next) => {
+  config.connectDB().then(() => {
     let generated_key = uuidv4();
 
-    let sqlGetMail = `SELECT * FROM users WHERE (name = "${req.body.userName}" OR mail = "${req.body.userName}")`;
+    User.findOne({
+      $or: [{ name: req.body.userName }, { mail: req.body.userName }]
+    }).then(user => {
+      if (user) {
+        let targetMail = user.mail;
 
-    db.query(sqlGetMail).then(resultGetMail => {
+        const passwordReset = new PasswordReset({
+          user_name: req.body.userName,
+          generated_key: generated_key,
+          date: new Date()
+        });
 
-      if(resultGetMail.length > 0)
-      {
-        let targetMail = resultGetMail[0]['mail'];
-
-        let sqlInsert = `INSERT INTO password_reset (user_name, generated_key, date) VALUES ('${req.body.userName}', '${generated_key}', '${new Date().toISOString().slice(0, 19).replace('T', ' ')}')`;
-
-        db.query(sqlInsert).then(result => {
-
-          db.end();
-
-          config.getMailInfos().then((mailInfos) => {
-
-            let mailContent = `${req.body.messagePart1} : http://www.histoatlas.org/pages/resetPassword.html?token=${generated_key} \n\n${req.body.messagePart2}`
+        passwordReset.save().then(() => {
+          config.getMailInfos().then(mailInfos => {
+            let mailContent = `${req.body.messagePart1} : http://www.histoatlas.org/pages/resetPassword.html?token=${generated_key} \n\n${req.body.messagePart2}`;
 
             var transporter = nodemailer.createTransport({
               host: mailInfos['host'],
-              port: mailInfos['port'],  //25,
+              port: mailInfos['port'],
               auth: {
                 user: mailInfos['auth_user'],
                 pass: mailInfos['auth_pass'],
@@ -327,249 +215,133 @@ exports.forgotPassword = (req, res, next) =>
             });
             var mailOptions = {
               from: mailInfos['auth_user'],
-              to: targetMail, 
-              subject: req.body.messageTitle, 
+              to: targetMail,
+              subject: req.body.messageTitle,
               text: mailContent
             };
 
-            transporter.sendMail(mailOptions, function(error, info){
+            transporter.sendMail(mailOptions, function(error, info) {
               if (error) {
-                res.status(500).send({ error : "SERVER_MAIL_SEND_FAIL" });
+                res.status(500).send({ error: "SERVER_MAIL_SEND_FAIL" });
               } else {
-                //console.log('Email sent: ' + info.response);
-                res.status(200).send({ });
+                res.status(200).send({});
               }
             });
-          }).catch(error => res.status(500).send({ error : "SERVER_QUERY_FAIL" }));
-        }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
+          }).catch(error => res.status(500).send({ error: "SERVER_QUERY_FAIL" }));
+        }).catch(error => res.status(500).send({ error: "SERVER_QUERY_FAIL" }));
+      } else {
+        res.status(500).send({ error: "SERVER_USER_NOT_EXIST" });
       }
-      else
-      {
-        res.status(500).send({ error : "SERVER_USER_NOT_EXIST" });
-      }
-
-    }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
-
-  }).catch(error => { res.status(500).json({ error }) });
+    }).catch(error => res.status(500).send({ error: "SERVER_QUERY_FAIL" }));
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Reset the password, check valid key
- * @param {String}                      req.params.token                 The token
- * @return                                                               Empty
- */
-exports.resetPasswordGet = (req, res, next) => 
-{
+exports.resetPasswordGet = (req, res, next) => {
   let token = req.params.token;
 
-  config.connectBDD().then((db) => {
-
-    this.resetPasswordCheckVality(db, token)
-    .then(() => 
-    {
-      db.end(); 
-
-      res.status(200).send({});
-    })
-    .catch((error) => { db.end(); res.status(500).send({ error : error }) });
-
-  }).catch(error => { res.status(500).json({ error }) });
+  config.connectDB().then(() => {
+    this.resetPasswordCheckVality(token)
+      .then(() => {
+        res.status(200).send({});
+      })
+      .catch((error) => { res.status(500).send({ error: error }) });
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Reset the password, check valid key and change password
- * @param {String}                      req.body.password              The password
- * @param {String}                      req.body.token                 The token
- * @return                                                             Empty
- */
-exports.resetPassword = (req, res, next) => 
-{
+exports.resetPassword = (req, res, next) => {
   let token = req.body.token;
 
-  config.connectBDD().then((db) => {
-
-    this.resetPasswordCheckVality(db, token)
-    .then((userName) => 
-    {
-      bcrypt.hash(req.body.password, 10).then(hash => {
-
-      let sql = `UPDATE users SET password = "${hash}" WHERE name = "${userName}"`;
-
-      db.query(sql).then(result => {
-
-        log.log("forgotPassword", {name : userName});
-
-        db.end();
-
-        res.status(200).send({});
-
-        }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
-      }).catch(error => { db.end(); res.status(500).json({ error }) });
-    })
-    .catch((error) => { db.end(); res.status(500).send({ error : error }) });
-
-  }).catch(error => { res.status(500).json({ error }) });
+  config.connectDB().then(() => {
+    this.resetPasswordCheckVality(token)
+      .then((userName) => {
+        bcrypt.hash(req.body.password, 10).then(hash => {
+          User.updateOne({ name: userName }, { password: hash }).then(() => {
+            log.log("forgotPassword", { name: userName });
+            res.status(200).send({});
+          }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
+        }).catch(error => { res.status(500).json({ error }) });
+      })
+      .catch((error) => { res.status(500).send({ error: error }) });
+  }).catch(error => res.status(500).json({ error }));
 }
 
-/*
- * Reset the password, check valid key and valid date
- * @param {MariaDB Connector}           db                    The db connector
- * @param {String}                      token                 The token
- * @return                                                    Empty
- */
-exports.resetPasswordCheckVality = (db, token) => 
-{
-  return new Promise(function(resolve, reject) 
-  {
-    let sql = `SELECT * FROM password_reset WHERE generated_key = "${token}"`;
-
-    db.query(sql).then(result => {
-
-      console.log(result);
-
-      if(result.length > 0)
-      {
+exports.resetPasswordCheckVality = (token) => {
+  return new Promise((resolve, reject) => {
+    PasswordReset.findOne({ generated_key: token }).then(result => {
+      if (result) {
         let actualDate = new Date();
-        let dbDate = new Date(result[0]['date']);
-
+        let dbDate = new Date(result.date);
         let diffTime = Math.abs(dbDate - actualDate);
-        let diffDays = diffTime / (1000 * 60 * 60 * 24); 
+        let diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-        if(diffDays > 1)
-        {
+        if (diffDays > 1) {
           reject("SERVER_KEY_EXPIRED");
+        } else {
+          resolve(result.user_name);
         }
-        else
-        {
-          resolve(result[0]['user_name']);
-        }
-      }
-      else
-      {
+      } else {
         reject("SERVER_KEY_INVALID");
       }
     }).catch(error => { reject("SERVER_KEY_INVALID"); });
   });
 }
 
-/*
- * Delete the user (but not delete maps)
- * @param {String}           req.body.user                    The user
- * @return                                                    Empty
- */
-exports.delete = (req, res, next) => 
-{
-    config.connectBDD().then((db) => {
-
-    let sqlDelete = `DELETE FROM users WHERE name = '${req.body.user}'`;
-
-    db.query(sqlDelete).then(result => {
-
+exports.delete = (req, res, next) => {
+  config.connectDB().then(() => {
+    User.deleteOne({ name: req.body.user }).then(() => {
       res.status(200).send({});
-
-    }).catch(error => { db.end(); res.status(500).send({ }); });
-
-  }).catch(error => { res.status(500).send({ }); });  
+    }).catch(error => { res.status(500).send({}); });
+  }).catch(error => { res.status(500).send({}); });
 }
 
-/*
- * Get newsletter state
- * @param {String}                      user                             The user name
- * @return                                                               The email adresse of user
- */
-exports.getNewsletterState  = (req, res, next) => 
-{
-  let userName = url.parse(req.url,true).query.user;
+exports.getNewsletterState = (req, res, next) => {
+  let userName = url.parse(req.url, true).query.user;
 
-  config.connectBDD().then((db) => {
-    let sql = `SELECT * FROM users WHERE name = "${userName}"`;
-
-    db.query(sql).then(result => {
-        
-      db.end();
-      if(result.length > 0)
-      {
-        res.status(200).send({ newsletter : result[0]['newsletter']});
+  config.connectDB().then(() => {
+    User.findOne({ name: userName }).then(user => {
+      if (user) {
+        res.status(200).send({ newsletter: user.newsletter });
+      } else {
+        res.status(500).send({});
       }
-      else
-      {
-        res.status(500).send({ });
-      }
-
-    }).catch(error => { db.end(); res.status(500).send({ }); });
-  }).catch(error => { res.status(500).send({ }); });
+    }).catch(error => { res.status(500).send({}); });
+  }).catch(error => { res.status(500).send({}); });
 }
 
-/*
- * Set newsletter state
- * @param {String}                      req.body.newsletter              The new newsletter state
- * @param {String}                      req.body.name                    The user name or mail
- * @return                                                               empty
- */
-exports.changeNewsletterState = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
-
-    let sql = `UPDATE users SET newsletter = ${req.body.newsletter} WHERE (name = "${req.body.user}" OR mail = "${req.body.user}")`;
-
-    db.query(sql).then(result => {
-
-      if(req.body.newsletter == false)
-      {
-        let sqlDelete = `DELETE FROM newsletters WHERE mail = "${req.body.user}"`;
-
-        db.query(sqlDelete).then(result => {
-
-          db.end();
-
+exports.changeNewsletterState = (req, res, next) => {
+  config.connectDB().then(() => {
+    User.updateOne(
+      { $or: [{ name: req.body.user }, { mail: req.body.user }] },
+      { newsletter: req.body.newsletter }
+    ).then(() => {
+      if (req.body.newsletter == false) {
+        Newsletter.deleteOne({ mail: req.body.user }).then(() => {
           res.status(200).send({});
-
-        }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
-      }
-      else
-      {
-        db.end();
-
+        }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
+      } else {
         res.status(200).send({});
       }
-
-    }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
-  }).catch(error => { res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
+    }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
+  }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
 }
 
-/*
- * Add a new mail in the newsletters list
- * @param {String}                      req.body.mail              The mail adress
- * @param {String}                      req.body.lang              The lang
- * @return                                                         Empty
- */
-exports.addNewsletterMail = (req, res, next) => 
-{
-  config.connectBDD().then((db) => {
+exports.addNewsletterMail = (req, res, next) => {
+  config.connectDB().then(() => {
+    log.log("addNewsletter", { mail: req.body.mail, lang: req.body.lang });
 
-    log.log("addNewsletter", {mail : req.body.mail, lang : req.body.lang});
+    Newsletter.findOne({ mail: req.body.mail }).then(existing => {
+      if (!existing) {
+        const newsletter = new Newsletter({
+          mail: req.body.mail,
+          lang: req.body.lang
+        });
 
-    let sql = `SELECT * FROM newsletters WHERE mail = "${req.body.mail}"`;
-
-    db.query(sql).then(result => {
-
-      if(result.length == 0)
-      {
-        let sqlInsert = `INSERT INTO newsletters (mail, lang) VALUES ('${req.body.mail}', '${req.body.lang}')`;
-
-        db.query(sqlInsert).then(result => {
-
-          db.end();
+        newsletter.save().then(() => {
           res.status(200).send({});
-
-        }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
+        }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
+      } else {
+        res.status(500).send({ error: "SERVER_NEWSLETTER_ALREADY_SUBSCRIBER" });
       }
-      else
-      {
-        db.end();
-        res.status(500).send({ error : "SERVER_NEWSLETTER_ALREADY_SUBSCRIBER" });
-      }
-    
-    }).catch(error => { db.end(); res.status(500).send({ error : "SERVER_QUERY_FAIL" }); });
-  }).catch(error => { db.end(); res.status(500).send({ }); });
+    }).catch(error => { res.status(500).send({ error: "SERVER_QUERY_FAIL" }); });
+  }).catch(error => { res.status(500).send({}); });
 }

@@ -2,6 +2,8 @@
 const https = require('https');
 const app = require('./app');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const serverConfig = require('./params/config');
 
 /*
 const privateKey  = fs.readFileSync('/etc/ssl/node/private-key.pem', 'utf8');
@@ -52,7 +54,13 @@ server.on('listening', () => {
   console.log('Listening on ' + bind);
 });
 
-server.listen(port);
+serverConfig.connectDB().then(() => {
+  console.log('Connected to MongoDB');
+  server.listen(port);
+}).catch(err => {
+  console.error('Failed to connect to MongoDB:', err);
+  process.exit(1);
+});
 
 /*
 const httpsServer = https.createServer(credentials, app);
