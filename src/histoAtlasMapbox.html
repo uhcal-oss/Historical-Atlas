@@ -84,12 +84,6 @@
     <div id="dialog-description" title=""></div>
      
     <script>
-      // If HTTPS -> reload to http
-      if(window.location.protocol == "https:")
-      {
-          location.href = "http://" + window.location.host + window.location.pathname + window.location.search
-      }
-      
       let lang = "en";
       if(Config.getCookie("lang"))
       {

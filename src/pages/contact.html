@@ -52,12 +52,6 @@
 
   <script>
 
-    // If HTTPS -> reload to http
-    if(window.location.protocol == "https:")
-    {
-        location.href = "http://" + window.location.host + window.location.pathname + window.location.search
-    }
-
     Menu.loadDictionnary().then((config) =>
     {
       function validateEmail(email) 

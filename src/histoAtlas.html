@@ -127,12 +127,6 @@
     <script type="text/javascript" src="shared/descriptionManager.js?v=10.1"></script>
 
 	<script>
-        // If HTTPS -> reload to http
-        if(window.location.protocol == "https:")
-        {
-            location.href = "http://" + window.location.host + window.location.pathname + window.location.search
-        }
-
         let lang = "en";
         if(Config.getCookie("lang"))
         {

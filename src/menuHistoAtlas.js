@@ -72,12 +72,6 @@ class MenuHistoAtlas
       $(".img-frame").css("display", "flex");
     });
 
-    // If HTTPS -> reload to http
-    if(window.location.protocol == "https:")
-    {
-      location.href = "http://" + window.location.host + window.location.pathname + window.location.search
-    }
-
     // Load the config and init menu
     Config.load().then((config) =>
     {
