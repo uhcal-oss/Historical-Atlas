@@ -133,8 +133,8 @@ var BackgroundControl = L.Control.extend({
 
     if(this.selectedTile)
     {
-      //this.selectedTile.removeTo(this.map);
       this.map.removeLayer(this.selectedTile);
+      this.selectedTile = null;
     }
 
     if(this.jsonBackgrounds[id].type == "tile")
@@ -151,6 +151,12 @@ var BackgroundControl = L.Control.extend({
     else if(this.jsonBackgrounds[id].type == "empty")
     {
 
+    }
+
+    if(id == "avatar_world")
+    {
+      this.map.setZoom(2);
+      this.map.panTo([0, 0]);
     }
   }
 });

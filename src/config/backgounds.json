@@ -151,6 +151,19 @@
     "layers": "SRTM30-Colored-Hillshade",
     "attribution" : ""
   },
+  "avatar_world" : {
+    "name" : "Avatar World",
+    "type" : "tile",
+    "url" : "tiles/avatar/{z}/{x}/{y}.jpg",
+    "params" : {
+      "noWrap": true,
+      "attribution" : "Avatar: The Last Airbender &copy; Nickelodeon | Map ref: Dave2ooo",
+      "maxZoom": 5
+    },
+    "mapbox" : {
+      "enable" : false
+    }
+  },
   "empty" : {
     "name" : "Empty",
     "type" : "empty",

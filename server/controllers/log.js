@@ -21,23 +21,25 @@ exports.log = (apiName, data) =>
   if(minutes < 10) minutes = "0" + minutes;
   if(second < 10) second = "0" + second;
 
-  let pathFile = "logs/" + day + "-" + month + "-" + year + ".log"; 
+  let logsDir = "logs";
+  let pathFile = logsDir + "/" + day + "-" + month + "-" + year + ".log"; 
   let dateStr = day + "-" + month + "-" + year + " " + hours + ":" + minutes + ":" + second;
 
   let lineContent = `${dateStr} || ${apiName} || ${JSON.stringify(data)} \n`;
 
-  fs.exists(pathFile, function(exists) 
+  if(!fs.existsSync(logsDir))
   {
-    //if (!fs.existsSync(path)) 
-    if(!exists)
-    {
-      fs.writeFileSync(pathFile, lineContent, {});
-    }
-    else
-    {
-      let data = fs.readFileSync(pathFile, 'utf8');
-      data += lineContent;
-      fs.writeFileSync(pathFile, data, {});
-    }
-  });
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+
+  if(!fs.existsSync(pathFile))
+  {
+    fs.writeFileSync(pathFile, lineContent, {});
+  }
+  else
+  {
+    let data = fs.readFileSync(pathFile, 'utf8');
+    data += lineContent;
+    fs.writeFileSync(pathFile, data, {});
+  }
 }
