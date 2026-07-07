@@ -7,7 +7,7 @@ import sys
 from PIL import Image
 
 TILE_SIZE = 256
-SOURCE_IMAGE = "src/img/avatar/avatar_world_map.jpg"
+SOURCE_IMAGE = "src/img/avatar/avatar_world_map_bw.jpg"
 OUTPUT_DIR = "src/tiles/avatar"
 MAX_ZOOM = 5
 
