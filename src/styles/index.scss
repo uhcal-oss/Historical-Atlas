@@ -17,8 +17,9 @@ body {
 /* Contenu des autres pages */
 #index-page-content {
   width: 1000px;
+  max-width: 100%;
   margin: auto;
-  background-color: #ffffff; 
+  background-color: #ffffff;
   padding: 6px;
 
   margin-top: -1px;
@@ -531,6 +532,9 @@ body {
     min-width: 85px;
     cursor: pointer;
     font-size: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   
   .title-column:hover {
@@ -678,7 +682,7 @@ body {
 
   #index-title {
     margin-left: -1px;
-    border-radius: none;
+    border-radius: 0;
   }
 
   .description {
@@ -704,36 +708,15 @@ body {
 /* Manage smartphone */
  @media (max-width: 500px) {
   .map-frame {
-    width: 100%;
-    font-size: 19px;
+    width: 44%;
+    margin: 1%;
+    font-size: 17px;
   }
- 
+
   .icon-action {
     width: 32px;
     margin-left: 2px;
     margin-right: 2px;
-  }
- 
-  .iframe-publicmap {
-    width: 34px;
-  }
- 
-  .link-frame {
-    width: 42%;
-    margin: auto;
-    margin-top: 4px;
-    margin-bottom: 4px;
-  }
-
-  /* */
-  #index-page-content {
-    width: 100%;
-  }
-
-  .map-frame {
-    width: 44%;
-    margin: 1%;
-    font-size: 17px;
   }
 
   .iframe-publicmap {
@@ -747,7 +730,13 @@ body {
     margin-bottom: 4px;
   }
 
-  /* */
+  #index-page-content {
+    width: 100%;
+    margin: 0px;
+    padding: 0px;
+    border: none;
+  }
+
   .creation-date-col {
     display: none;
   }
@@ -764,22 +753,18 @@ body {
     display: none;
   }
 
-  #index-page-content {
-    margin: 0px;
-    padding: 0px;
-    border : none;
-  }
-
   .fieldset-map-frame {
-    border : none;
-    margin-left : -4px;
-    padding-right : 0px;
-    width : 100%;
+    border: none;
+    margin-left: 0px;
+    padding-right: 0px;
+    width: 100%;
 
     .title-column {
       min-width: 40px;
       max-width: 50px;
-      overflow:hidden;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     legend {
@@ -796,8 +781,22 @@ body {
     }
   }
 
-  #create-empty-map-link {
-    display: none;
+  /* Header: stack vertically so login fits */
+  .head {
+    flex-direction: column;
+    gap: 6px;
+
+    #connexion-div {
+      flex-direction: row;
+      gap: 6px;
+      padding: 6px;
+
+      .button-loggin {
+        width: auto;
+        font-size: 14px;
+        padding: 5px 12px;
+      }
+    }
   }
 
   /* Partie description */
@@ -810,24 +809,15 @@ body {
     }
 
     .view-description {
-      border-radius : 0% 0% 0% 0%;
+      border-radius: 0;
     }
-  
+
     .img-frame {
       width: 100%;
     }
-  
+
     .img-change {
       width: 5%;
     }
-  }
-
-  /* Others Menu */
-  #index-page-content {
-    width: 100%;
-  }
-
-  #connexion-registration-div {
-    display: none !important;
   }
 }

@@ -106,3 +106,22 @@
 .time-slider:focus::-ms-fill-upper {
   background: #ADBEF3;
 }
+
+/* ============================================= */
+/* Responsive rules for mobile / narrow screens  */
+/* ============================================= */
+@media (max-width: 700px) {
+  /* Time slider: was fixed 300px, now fits between controls */
+  .time-slider {
+    width: calc(100vw - 180px);
+  }
+}
+
+/* ===== Mobile / narrow screens ===== */
+@media (max-width: 700px) {
+  /* Time slider: fit between controls instead of fixed 300px (overflows phones) */
+  .time-slider {
+    width: calc(100vw - 180px);
+    max-width: 300px;
+  }
+}

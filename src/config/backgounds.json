@@ -154,7 +154,7 @@
   "avatar_world" : {
     "name" : "Avatar World",
     "type" : "tile",
-    "url" : "tiles/avatar/{z}/{x}/{y}.jpg",
+    "url" : "tiles/avatar/{z}/{x}/{y}.jpg?v=2",
     "params" : {
       "noWrap": true,
       "attribution" : "Avatar: The Last Airbender &copy; Nickelodeon | Map ref: Dave2ooo",
