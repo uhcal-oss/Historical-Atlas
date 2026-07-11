@@ -8,19 +8,22 @@ class DescriptionManager
    * @property {String}              type                   The type saved value
    * @property {String}              description            The description saved value
    */
-  constructor(params) {
+  constructor(params, loadSaveManager) {
 		let me = this;
 
 		me.params = params;
+		me.loadSaveManager = loadSaveManager;
 
+		this.mapName = "";
 		this.lang = null;
 		this.type = null;
 		this.description = "";
+		this.public = true;
 
 		let height = 640;
 		let width = 740;
 		if($(window).width() < 800 || $(window).height() < 800) {
-			height = 340;
+			height = 440;
 		  width = 440;
     }
 
@@ -29,8 +32,10 @@ class DescriptionManager
 		  height: height,
 		  width: width,
 		  modal: true,
+		  title: Dictionary.get("MAP_SETTINGS_TITLE"),
 		  buttons: {
 			Cancel: function() {
+				me.pendingSave = false;
 				if(me.params.editMode) {
 			  	me.initFormValues();
 			  }
@@ -40,6 +45,11 @@ class DescriptionManager
 			  me.saveDescription();
 			  me.description = me.params.description;
 			  me.dialog.dialog("close");
+
+			  if(me.pendingSave) {
+				  me.pendingSave = false;
+				  me.loadSaveManager.save(me.mapName);
+			  }
 			}
 		  }
 		});
@@ -49,6 +59,7 @@ class DescriptionManager
    * Display
    */
   display() {
+		this.updateContent(this.mapData);
 		this.dialog.dialog("open");
   }
 
@@ -58,6 +69,11 @@ class DescriptionManager
    */
   updateContent(mapData) {
 		let me = this;
+		if (mapData) {
+			me.mapData = mapData;
+		} else {
+			mapData = me.mapData || {name : "", lang : lang, type : ""};
+		}
 		if(!me.params.editMode) {
 			let html = `<h2>${mapData.name}</h2>
 			<p>
@@ -70,11 +86,17 @@ class DescriptionManager
 			$("#dialog-description").html(html);
 		}
 		else {
+			me.mapName = mapData.name || "";
 			me.lang = mapData.lang;
 			me.type = mapData.type;
+			me.public = mapData.public !== undefined ? mapData.public : true;
 			me.description = mapData.data ? JSON.parse(mapData.data).params["description"] : "";
 
-			let html = `<h2>${mapData.name}</h2>
+			let html = `
+			<div id="map-name-settings-div">
+				<label for="input-map-name-settings">${Dictionary.get("MAP_SAVE_NAME")} : </label>
+				<input type="text" id="input-map-name-settings" value="${me.mapName}" />
+			</div><br/>
 
 			<div id="description">Description :
 				<div id="description-text">${me.description.replaceAll("<br/>\n", "\n")}</div>
@@ -90,7 +112,7 @@ class DescriptionManager
 
 				<input type="radio" id="map-lang-fr" name="map-lang" value="fr">
 				<label for="map-lang-fr">FR</label>
-			</div>
+			</div><br/>
 
 			<div id="type-map-choise">
 				<text id="type-map-choise-text">${Dictionary.get("MAP_TYPE_TEXT")}</text>
@@ -106,7 +128,17 @@ class DescriptionManager
 
 				<input type="radio" id="type-map-choise-present" name="type-map-choise" value="present">
 				<label for="type-map-choise-present" id="type-map-choise-present-label">${Dictionary.get("MAP_TYPE_PRESENT")}</label>
-	    	</div>`;
+		</div><br/>
+
+			<div id="privacy-choise">
+				<text id="privacy-choise-text">${Dictionary.get("MAP_SAVE_PRIVACY")} : </text>
+				<label>${Dictionary.get("MAP_SAVE_PRIVATE")}</label>
+				<label class="switch">
+				  <input type="checkbox" id="map-privacy-checkbox">
+				  <span class="slider round"></span>
+				</label>
+				<label>${Dictionary.get("MAP_SAVE_PUBLIC")}</label>
+			</div>`;
 
 			$("#dialog-description").html(html);
 
@@ -124,6 +156,11 @@ class DescriptionManager
 
 			$('#map-lang-' + mapData.lang).prop("checked", true);
 			$('#type-map-choise-' + mapData.type).prop("checked", true);
+			if(me.public) {
+				$('#map-privacy-checkbox').prop("checked", true);
+			} else {
+				$('#map-privacy-checkbox').prop("checked", false);
+			}
 		}
   }
 
@@ -133,6 +170,11 @@ class DescriptionManager
   initFormValues() {
 	  $('#map-lang-' + this.lang).prop("checked", true);
 	  $('#type-map-choise-' + this.type).prop("checked", true);
+	  if(this.public) {
+		  $('#map-privacy-checkbox').prop("checked", true);
+	  } else {
+		  $('#map-privacy-checkbox').prop("checked", false);
+	  }
 
 	  this.params.description = this.description;
 	  $("#description-text").html(this.description.replaceAll("<br/>\n", "\n"));
@@ -150,6 +192,11 @@ class DescriptionManager
 		if($("#text-area-description").length > 0) {
 			this.params.description = $("#text-area-description").val().replaceAll("\n", "<br/>\n");
 		}
+
+		this.mapName = $("#input-map-name-settings").val();
+		this.lang = $('input[name="map-lang"]:checked').val();
+		this.type = $('input[name="type-map-choise"]:checked').val();
+		this.public = $('#map-privacy-checkbox').is(':checked');
 
 		$("#description-text").html(this.params.description);
 		$("#img-description-edit").css("visibility", "visible");

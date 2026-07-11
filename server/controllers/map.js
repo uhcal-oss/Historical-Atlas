@@ -24,7 +24,7 @@ exports.save = (req, res, next) => {
         if (req.body.exist) {
           Map.updateOne(
             { name: req.body.name, user: userId },
-            { lang: req.body.lang, category: req.body.type, update_date: new Date() }
+            { lang: req.body.lang, category: req.body.type, public: req.body.public, update_date: new Date() }
           ).then(() => {
             res.status(200).json({ insertId: req.body.id });
           }).catch(error => { res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' }) });
@@ -36,6 +36,7 @@ exports.save = (req, res, next) => {
             url: fileUrl,
             lang: req.body.lang,
             category: req.body.type,
+            public: req.body.public,
             update_date: new Date(),
             creation_date: new Date()
           });

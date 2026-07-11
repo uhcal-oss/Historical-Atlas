@@ -1,4 +1,3 @@
-﻿
 
 class ActionButtonSave extends ActionButton
 {
@@ -7,30 +6,25 @@ class ActionButtonSave extends ActionButton
    * @property {L.Dom}             _menu                 The menu div of choose file
    * @param {L.Dom}                container             The contener element
    * @param {String}               imgSrc                The image src
-   * @param {String}               title                 The button title 
+   * @param {String}               title                 The button title
    * @param {PaintLayer}           paintParams           The paint parameters
    * @param {LoadSaveManager}      loadSaveManager       Load and Save Manager
    */
   constructor(container, imgSrc, title, paintParams, loadSaveManager)
   {
-    super(container, imgSrc, title, null, 'a', 'action-button');
+    super(container, "img/actions/save-regular.svg", title, null, 'a', 'action-button');
 
     this.importInit = false;
 
-    this._menu = L.DomUtil.create('div', 'leaflet-bar leaflet-control-div-slider', container);
-    L.DomEvent.disableClickPropagation(this._menu);
-
-    var menuContent = L.DomUtil.create('div', 'leaflet-control-div-slider-content', this._menu);
-    this.savNameInput = L.DomUtil.create('input', '', menuContent);
-    this.savNameInput.type = "text";
-    this.savNameInput.id = "input-sav-file-name";
-
-    var buttonSave = L.DomUtil.create('button', '', menuContent);
-    buttonSave.type = "text";
-    buttonSave.innerHTML = "Save";
-
-    L.DomEvent.on(this.buttonDom, 'click', function(e) { loadSaveManager.checkValidUser(); paintParams.uiClick = true; this._clickRangeButton(e) }, this);
-    L.DomEvent.on(buttonSave, 'click', function(e) { loadSaveManager.save(this.savNameInput.value); }, this);
+    L.DomEvent.on(this.buttonDom, 'click', function(e) {
+      paintParams.uiClick = true;
+      if (loadSaveManager.descriptionManager.mapName) {
+        loadSaveManager.save(loadSaveManager.descriptionManager.mapName);
+      } else {
+        loadSaveManager.descriptionManager.pendingSave = true;
+        loadSaveManager.descriptionManager.display();
+      }
+    }, this);
 
     this.visibleState = false;
   }
@@ -41,7 +35,7 @@ class ActionButtonSave extends ActionButton
    */
   setFileName(name)
   {
-    this.savNameInput.value = name;
+    // Deprecated, name is managed by descriptionManager
   }
 
   /*
@@ -52,52 +46,21 @@ class ActionButtonSave extends ActionButton
   {
     if(display)
     {
-      this._menu.style["display"] = "block";
       this.buttonDom.style["display"] = "inline-block";
       this.visibleState = true;
     }
     else
     {
-      this._menu.style["display"] = "none";
       this.buttonDom.style["display"] = "none";
       this.visibleState = false;
     }
   }
 
-  /* 
-   * Click in a range button
-   * @param {Event}               e                    The event
-   */
-  _clickRangeButton(e)
-  {
-    if (!L.DomUtil.hasClass(this._menu, 'leaflet-control-div-slider-open')) {
-        this._openMenu();
-    } else {
-        this._closeMenu();
-    }
-  }
-  
-  /* 
-   * Open a UI menu
-   */
-  _openMenu() {
-      L.DomUtil.addClass(this._menu, "leaflet-control-div-slider-open");
-  }
-
-  /* 
-   * Close a UI menu
-   */
-  _closeMenu() {
-      L.DomUtil.removeClass(this._menu, "leaflet-control-div-slider-open");
-  }
-
   /*
-   * Hide the button and menu
+   * Hide the button
    */
   hide()
   {
-    this._closeMenu();
-
     super.hide();
   }
 
