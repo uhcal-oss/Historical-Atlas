@@ -26,6 +26,9 @@ class DescriptionManager
 			height = 440;
 		  width = 440;
     }
+		if($(window).width() < 480) {
+			width = $(window).width() - 20;
+		}
 
 		me.dialog = $("#dialog-description").dialog({
 		  autoOpen: false,
