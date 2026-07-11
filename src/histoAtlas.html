@@ -47,6 +47,14 @@
     <div id="dialog-time-area"></div>
 
     <div id="dialog-properties"></div>
+    <div id="dialog-login" title="Login">
+      <div id="login-form">
+        <label for="login-username">User name or mail :</label><br/>
+        <input type="text" id="login-username" class="text ui-widget-content ui-corner-all"><br/><br/>
+        <label for="login-password">Password :</label><br/>
+        <input type="password" id="login-password" class="text ui-widget-content ui-corner-all">
+      </div>
+    </div>
     <div id="dialog-properties-layer"></div>
 
     <div id="dialog-description"></div>
@@ -139,8 +147,8 @@
 
         Dictionary.load(lang, "", function()
         {
-          let main = new Main();
-    	    setTimeout(main.init(), 1000);
+          window.main = new Main();
+          setTimeout(() => { window.main.init(); }, 1000);
         });
     </script>
   </body>

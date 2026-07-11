@@ -42,6 +42,8 @@ class LoadSaveManager
       //this.logged = true;
       this.logged = false;
     }
+
+    this.initLoginDialog();
   }
 
   /*
@@ -226,6 +228,12 @@ class LoadSaveManager
    */
   save(name)
   {
+    if (!localStorage.getItem('session-id-histoatlas')) {
+      this.pendingSaveAfterLogin = true;
+      this.loginDialog.dialog("open");
+      return;
+    }
+
     if(name.length == 0)
     {
       alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_FILENAME_EMPTY"));
@@ -245,32 +253,19 @@ class LoadSaveManager
     content = this.layersManager.toJson(content);
     content = PropertiesForm.toJson(content);
 
-    // get lang
-    let mapLang = "";
-    $('input[name="map-lang"]').each(function() {
-      if(this.checked)
-      {
-        mapLang = this.value;
-      }
-    });
+    // get settings from descriptionManager
+    let mapLang = this.descriptionManager.lang;
+    let mapType = this.descriptionManager.type;
+    let isPublic = this.descriptionManager.public;
 
     Utils.callServer("map/checkIfFileExist", "POST", {name : name, lang : mapLang, user : localStorage.getItem('session-id-histoatlas')}).then((result) => {
 
-      if(!result.exist || confirm(Dictionary.get("MAP_SAVEANDLOAD_FILE_ALREADY_EXIST")))
+      if(!result.exist || (!this.descriptionManager.pendingSave || confirm(Dictionary.get("MAP_SAVEANDLOAD_FILE_ALREADY_EXIST"))))
       {
         $("#loading").html(Dictionary.get("MAP_SAVEANDLOAD_SAVE_IN_PROGRESS"));
         this.actionsControl.buttons["save"].hide();
 
-        // get map type
-        let mapType = "";
-        $('input[name="type-map-choise"]').each(function() {
-          if(this.checked)
-          {
-            mapType = this.value;
-          }
-        });
-
-        let contentSave = {name : name, fileName : fileName, id : result.id, content : JSON.stringify(content), exist : result.exist, user : localStorage.getItem('session-id-histoatlas'), lang : mapLang, type : mapType};
+        let contentSave = {name : name, fileName : fileName, id : result.id, content : JSON.stringify(content), exist : result.exist, user : localStorage.getItem('session-id-histoatlas'), lang : mapLang, type : mapType, public: isPublic};
         
         Utils.callServer("map/save", "POST", contentSave).then((result) => {
 
@@ -280,8 +275,8 @@ class LoadSaveManager
           $("#loading").html("");
           this.actionsControl.buttons["save"].show();
 
-          //toastr.success(Dictionary.get("MAP_SAVEANDLOAD_SAVE_END"), 'Sauvegarde');
-          alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_END"));
+          //toastr.success(Dictionary.get("MAP_SAVE_SUCCESS"), 'Sauvegarde');
+          alert(Dictionary.get("MAP_SAVE_SUCCESS"));
 
           window.history.pushState("", "Title", window.location.href.split('histoAtlas.html')[0] + "histoAtlas.html?mapId=" + result.insertId);
 
@@ -364,8 +359,6 @@ class LoadSaveManager
             me.logged = true;
           }
 
-          //console.log('validUser');
-
           if(callback) {
             callback(); 
           }
@@ -373,35 +366,102 @@ class LoadSaveManager
         }).catch((err) => {
           localStorage.removeItem('session-id-histoatlas');
           localStorage.removeItem('session-token-histoatlas');
-
-          //console.log('invalidUser');
-
           me.actionsControl.updateLoggedState(false);
-
           me.logged = false;
 
           if(callback) {
             callback(); 
           }
         });
-      }
-      else
-      {
-        //if(me.logged)
-        //{
-          me.actionsControl.updateLoggedState(false);
-          me.logged = false;
+      } else {
+        this.loadTemporaryWork();
+        me.actionsControl.updateLoggedState(false);
+        me.logged = false;
 
-          if(callback) {
-            callback(); 
-          }
-        //}
+        if(callback) {
+          callback();
+        }
       }
-    }
-    else {
+    } else {
       if(callback) {
         callback(); 
       }
+    }
+  }
+
+  /*
+   * Initialize login dialog
+   */
+  initLoginDialog()
+  {
+    let me = this;
+    this.loginDialog = $("#dialog-login").dialog({
+      autoOpen: false,
+      height: 300,
+      width: 350,
+      modal: true,
+      buttons: {
+        "Login": function() {
+          me.loginInEditor();
+        },
+        Cancel: function() {
+          me.loginDialog.dialog("close");
+        }
+      }
+    });
+  }
+
+  /*
+   * Perform login within the editor
+   */
+  loginInEditor()
+  {
+    let me = this;
+    let name = $("#login-username").val();
+    let password = $("#login-password").val();
+
+    Utils.callServer("user/login", "POST", {name : name, password : password}).then((response) =>
+    {
+      localStorage.setItem('session-token-histoatlas', response.token);
+      localStorage.setItem('session-id-histoatlas', response.userId);
+
+      me.loginDialog.dialog("close");
+      me.checkValidUser(true, () => {
+        if (me.pendingSaveAfterLogin) {
+          me.pendingSaveAfterLogin = false;
+          me.save(me.descriptionManager.mapName);
+        }
+      });
+
+    }).catch((err) =>
+    {
+      alert(Dictionary.get(err.responseJSON.error));
+    });
+  }
+
+  /*
+   * Save temporary work for guest
+   */
+  saveTemporaryWork()
+  {
+    let content = {};
+    content = this.params.toJson(content);
+    content = this.layersManager.toJson(content);
+    content = PropertiesForm.toJson(content);
+    localStorage.setItem('temp-map-histoatlas', JSON.stringify(content));
+  }
+
+  /*
+   * Load temporary work
+   */
+  loadTemporaryWork()
+  {
+    let tempWork = localStorage.getItem('temp-map-histoatlas');
+    if (tempWork) {
+      let contentObj = JSON.parse(tempWork);
+      this.initParamsFromData(contentObj);
+      this.initMapFromData(contentObj);
+      localStorage.removeItem('temp-map-histoatlas');
     }
   }
 }

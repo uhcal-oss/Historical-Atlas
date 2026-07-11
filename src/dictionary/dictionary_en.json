@@ -354,5 +354,12 @@
 
   "SELECT-PROJECTION-LABEL" : "Select projection",
 
-  "MUST-SAVE" : "Remember to save regularly to prevent losing your changes"
+  "MUST-SAVE" : "Remember to save regularly to prevent losing your changes",
+
+  "MAP_SAVE_PUBLIC": "Public",
+  "MAP_SAVE_PRIVATE": "Private",
+  "MAP_SAVE_PRIVACY": "Privacy",
+  "MAP_SETTINGS_TITLE": "Map Settings",
+  "MAP_SAVE_NAME": "Map Name",
+  "MAP_SAVE_SUCCESS": "Map saved successfully"
 }

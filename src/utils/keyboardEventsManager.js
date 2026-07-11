@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The keyboard events manager
  */
 class KeyboardEventsManager
@@ -34,11 +34,14 @@ class KeyboardEventsManager
           {
             event.preventDefault();
 
-            let name = $("#input-sav-file-name").val();
+            let name = me.loadSaveManager.descriptionManager.mapName;
 
             if(name != "")
             {
               me.loadSaveManager.save(name);
+            } else {
+              me.loadSaveManager.descriptionManager.pendingSave = true;
+              me.loadSaveManager.descriptionManager.display();
             }
           }
           // Undo / Redo

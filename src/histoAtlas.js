@@ -58,7 +58,7 @@ class Main
       me.actionsList = new ActionList();
       me.labelDate = new LabelDate(me.map, me.params);
 
-      me.descriptionManager = new DescriptionManager(me.params);
+      me.descriptionManager = new DescriptionManager(me.params, null);
 
       me.saveFrameControl = new SaveFrameControl({editMode : me.params.editMode}).addTo(me.map);
 
@@ -79,6 +79,7 @@ class Main
       me.layersManager = new LayersManager({params : me.params, paintParams : me.paintParams, cursorManager : me.cursorManager, map: me.map, layersControl :me.layersControl});
 
       me.loadSaveManager = new LoadSaveManager(me.map, me.layersManager, me.params, me.backgroundControl, me.timeControl, me.layersControl, me.actionsList, me.descriptionManager, me.saveFrameControl, jsonBackgrounds);
+      me.descriptionManager.loadSaveManager = me.loadSaveManager;
       me.geoJsonManager = new GeoJsonManager(me.map, me.layersManager, me.layersControl, me.timeControl, me.actionsList, me.loadSaveManager, me.params);
 
       me.actionsControl = new ActionsControl({cursorManager : me.cursorManager, paintParams : me.paintParams, layersManager: me.layersManager, params : me.params, loadSaveManager : me.loadSaveManager, layersControl : me.layersControl, actionsList : me.actionsList, copyManager : me.copyManager, geoJsonManager : me.geoJsonManager, descriptionManager : me.descriptionManager}).addTo(me.map);
@@ -143,6 +144,13 @@ class Main
       }
 
       me.manageMapEvents();
+
+      window.addEventListener("beforeunload", (event) => {
+        if (!localStorage.getItem('session-id-histoatlas')) {
+           me.loadSaveManager.saveTemporaryWork();
+        }
+      });
+      me.initDone = true;
     });
   }
 

@@ -354,5 +354,12 @@
 
   "SELECT-PROJECTION-LABEL" : "Sélectionner la projection",
 
-  "MUST-SAVE" : "Penser à Sauvegarder régulièrement pour ne pas perdre vos modifications"
+  "MUST-SAVE" : "Penser à Sauvegarder régulièrement pour ne pas perdre vos modifications",
+
+  "MAP_SAVE_PUBLIC": "Public",
+  "MAP_SAVE_PRIVATE": "Privé",
+  "MAP_SAVE_PRIVACY": "Confidentialité",
+  "MAP_SETTINGS_TITLE": "Paramètres de la carte",
+  "MAP_SAVE_NAME": "Nom de la carte",
+  "MAP_SAVE_SUCCESS": "Carte sauvegardée avec succès"
 }
