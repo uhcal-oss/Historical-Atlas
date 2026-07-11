@@ -21,6 +21,9 @@ class Config
       $.getJSON(url, function(configData) 
       {
         resolve(configData);
+      }).fail(function(jqXHR, textStatus, errorThrown) {
+        console.error("[DBG-CONFIG] FAILED to load", url, textStatus, errorThrown);
+        reject(new Error("Config load failed: " + url));
       });
     });
   }

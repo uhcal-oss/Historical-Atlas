@@ -228,7 +228,10 @@ class LoadSaveManager
    */
   save(name)
   {
+    alert("[DBG3] save() called, name='" + name + "', session=" + localStorage.getItem('session-id-histoatlas'));
+
     if (!localStorage.getItem('session-id-histoatlas')) {
+      alert("[DBG3] Not logged in, opening login dialog");
       this.pendingSaveAfterLogin = true;
       this.loginDialog.dialog("open");
       return;
@@ -236,6 +239,7 @@ class LoadSaveManager
 
     if(name.length == 0)
     {
+      alert("[DBG3] Name is empty!");
       alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_FILENAME_EMPTY"));
       return;
     }
@@ -243,6 +247,7 @@ class LoadSaveManager
     var nameRegex = /^[a-zA-Z0-9\s]+$/;
     if(!nameRegex.test(name))
     {
+      alert("[DBG3] Name invalid!");
       alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_FILENAME_INVALID"));
       return;
     }
@@ -258,7 +263,9 @@ class LoadSaveManager
     let mapType = this.descriptionManager.type;
     let isPublic = this.descriptionManager.public;
 
+    alert("[DBG3] Calling checkIfFileExist...");
     Utils.callServer("map/checkIfFileExist", "POST", {name : name, lang : mapLang, user : localStorage.getItem('session-id-histoatlas')}).then((result) => {
+      alert("[DBG3] checkIfFileExist returned, exist=" + result.exist);
 
       if(!result.exist || (!this.descriptionManager.pendingSave || confirm(Dictionary.get("MAP_SAVEANDLOAD_FILE_ALREADY_EXIST"))))
       {
@@ -280,10 +287,10 @@ class LoadSaveManager
 
           window.history.pushState("", "Title", window.location.href.split('histoAtlas.html')[0] + "histoAtlas.html?mapId=" + result.insertId);
 
-        }).catch((err) => { alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_IMPOSSIBLE") + Dictionary.get(err.responseJSON.error)); });
+        }).catch((err) => { alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_IMPOSSIBLE") + (err.responseJSON ? Dictionary.get(err.responseJSON.error) : err.statusText || err)); });
       }
         
-    }).catch((err) => { alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_IMPOSSIBLE") + Dictionary.get(err.responseJSON.error)); });
+    }).catch((err) => { alert(Dictionary.get("MAP_SAVEANDLOAD_SAVE_IMPOSSIBLE") + (err.responseJSON ? Dictionary.get(err.responseJSON.error) : err.statusText || err)); });
   }
 
   /*
@@ -424,13 +431,16 @@ class LoadSaveManager
     let name = $("#login-username").val();
     let password = $("#login-password").val();
 
+    alert("[DBG4] loginInEditor called, user='" + name + "'");
     Utils.callServer("user/login", "POST", {name : name, password : password}).then((response) =>
     {
+      alert("[DBG4] Login succeeded, token=" + response.token.substring(0, 10) + "...");
       localStorage.setItem('session-token-histoatlas', response.token);
       localStorage.setItem('session-id-histoatlas', response.userId);
 
       me.loginDialog.dialog("close");
       me.checkValidUser(true, () => {
+        alert("[DBG4] checkValidUser done, pendingSaveAfterLogin=" + me.pendingSaveAfterLogin);
         if (me.pendingSaveAfterLogin) {
           me.pendingSaveAfterLogin = false;
           me.save(me.descriptionManager.mapName);
@@ -439,7 +449,7 @@ class LoadSaveManager
 
     }).catch((err) =>
     {
-      alert(Dictionary.get(err.responseJSON.error));
+      alert("[DBG4] Login FAILED: " + (err.responseJSON ? JSON.stringify(err.responseJSON) : err.statusText || err));
     });
   }
 

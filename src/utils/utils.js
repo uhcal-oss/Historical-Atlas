@@ -13,6 +13,7 @@
       Config.load().then((config) =>
       {
         let urlServer = config.serverUrl + "/api/" + apiName;
+        console.log("[DBG-UTILS] callServer:", method, urlServer);
 
         if(data)
         {
@@ -21,12 +22,14 @@
             url: urlServer,
             method: method,
             contentType: "application/json",
-            headers:{ 'Authorization': localStorage.getItem('session-token-histoatlas') }, // 
+            headers:{ 'Authorization': localStorage.getItem('session-token-histoatlas') },
             data: JSON.stringify(data),
             success: (response) => {
+              console.log("[DBG-UTILS] SUCCESS:", urlServer);
               resolve(response);
             },
             error: (err) => {
+              console.log("[DBG-UTILS] ERROR:", urlServer, err.status, err.statusText);
               reject(err);
             }
           });
@@ -38,15 +41,19 @@
             url: urlServer,
             method: method,
             contentType: "application/json",
-            headers:{ 'Authorization': localStorage.getItem('session-token-histoatlas') }, // 
+            headers:{ 'Authorization': localStorage.getItem('session-token-histoatlas') },
             success: (response) => {
+              console.log("[DBG-UTILS] SUCCESS:", urlServer);
               resolve(response);
             },
             error: (err) => {
+              console.log("[DBG-UTILS] ERROR:", urlServer, err.status, err.statusText);
               reject(err);
             }
           });
         }
+      }).catch((err) => {
+        console.log("[DBG-UTILS] Config.load() FAILED:", err);
       });
     });
   }

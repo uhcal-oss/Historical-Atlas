@@ -19,8 +19,10 @@ class ActionButtonSave extends ActionButton
     L.DomEvent.on(this.buttonDom, 'click', function(e) {
       paintParams.uiClick = true;
       if (loadSaveManager.descriptionManager.mapName) {
+        alert("[DBG1] Save clicked, has mapName, calling save()");
         loadSaveManager.save(loadSaveManager.descriptionManager.mapName);
       } else {
+        alert("[DBG1] Save clicked, NO mapName, opening description dialog");
         loadSaveManager.descriptionManager.pendingSave = true;
         loadSaveManager.descriptionManager.display();
       }

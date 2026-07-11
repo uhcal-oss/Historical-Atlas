@@ -7,28 +7,41 @@ const log = require("./log");
 const Map = require('../models/Map');
 
 exports.save = (req, res, next) => {
+  console.log(`[DEBUG] MAP SAVE | user: ${req.body.user} | fileName: ${req.body.fileName} | exist: ${req.body.exist} | name: ${req.body.name} | content length: ${req.body.content ? req.body.content.length : 'NONE'}`);
   let folderUrl = `files/${req.body.user}`;
   let fileUrl = `${folderUrl}/${req.body.fileName}.json`;
 
   if (!fs.existsSync(folderUrl)) {
-    fs.mkdirSync(folderUrl);
+    console.log(`[DEBUG] MAP SAVE | creating folder: ${folderUrl}`);
+    fs.mkdirSync(folderUrl, { recursive: true });
   }
 
   fs.writeFile(fileUrl, req.body.content, function(err) {
-    if (err) return res.status(500).json({ error: 'SERVER_CREATION_SAVE_FILE_FAIL' });
+    if (err) {
+      console.log(`[DEBUG] MAP SAVE | writeFile FAILED | ${err.message}`);
+      return res.status(500).json({ error: 'SERVER_CREATION_SAVE_FILE_FAIL' });
+    }
+    console.log(`[DEBUG] MAP SAVE | file written: ${fileUrl}`);
 
     user.getUserIdFromName(req.body.user).then((userId) => {
+      console.log(`[DEBUG] MAP SAVE | getUserIdFromName OK | userId: ${userId}`);
       config.connectDB().then(() => {
         log.log("saveMap", { user: req.body.user, fileUrl: fileUrl });
 
         if (req.body.exist) {
+          console.log(`[DEBUG] MAP SAVE | updating existing map | query: {name: ${req.body.name}, user: ${userId}}`);
           Map.updateOne(
             { name: req.body.name, user: userId },
             { lang: req.body.lang, category: req.body.type, public: req.body.public, update_date: new Date() }
           ).then(() => {
+            console.log(`[DEBUG] MAP SAVE | update OK | insertId: ${req.body.id}`);
             res.status(200).json({ insertId: req.body.id });
-          }).catch(error => { res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' }) });
+          }).catch(error => {
+            console.log(`[DEBUG] MAP SAVE | update FAILED | ${error}`);
+            res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' });
+          });
         } else {
+          console.log(`[DEBUG] MAP SAVE | creating new map`);
           const map = new Map({
             user: userId,
             userName: req.body.user,
@@ -42,24 +55,43 @@ exports.save = (req, res, next) => {
           });
 
           map.save().then((result) => {
+            console.log(`[DEBUG] MAP SAVE | create OK | insertId: ${result._id}`);
             res.status(200).json({ insertId: result._id });
-          }).catch(error => { res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' }) });
+          }).catch(error => {
+            console.log(`[DEBUG] MAP SAVE | create FAILED | ${error}`);
+            res.status(500).json({ error: 'SERVER_SAVE_QUERY_FAIL' });
+          });
         }
-      }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
-    }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+      }).catch((e) => {
+        console.log(`[DEBUG] MAP SAVE | connectDB FAILED | ${e}`);
+        res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' });
+      });
+    }).catch((e) => {
+      console.log(`[DEBUG] MAP SAVE | getUserIdFromName FAILED | ${e}`);
+      res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' });
+    });
   });
 }
 
 exports.checkIfFileExist = (req, res, next) => {
+  console.log(`[DEBUG] MAP checkIfFileExist | user: ${req.body.user} | name: ${req.body.name}`);
   config.connectDB().then(() => {
     Map.findOne({ userName: req.body.user, name: req.body.name }).then(map => {
       if (map) {
+        console.log(`[DEBUG] MAP checkIfFileExist | FOUND | id: ${map._id}`);
         res.status(200).json({ exist: true, id: map._id });
       } else {
+        console.log(`[DEBUG] MAP checkIfFileExist | NOT FOUND`);
         res.status(200).json({ exist: false, id: null });
       }
-    }).catch(error => { res.status(500).json({ error: 'SERVER_QUERY_FAIL' }) });
-  }).catch((e) => { res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' }) });
+    }).catch(error => {
+      console.log(`[DEBUG] MAP checkIfFileExist | query FAILED | ${error}`);
+      res.status(500).json({ error: 'SERVER_QUERY_FAIL' });
+    });
+  }).catch((e) => {
+    console.log(`[DEBUG] MAP checkIfFileExist | connectDB FAILED | ${e}`);
+    res.status(500).json({ error: 'SERVER_CONNEXION_DATABASE_FAIL' });
+  });
 }
 
 exports.getVisibleMapsOfUser = (req, res, next) => {

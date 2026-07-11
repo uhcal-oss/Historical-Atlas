@@ -11,39 +11,57 @@ const PasswordReset = require('../models/PasswordReset');
 const Newsletter = require('../models/Newsletter');
 
 exports.login = (req, res, next) => {
+  console.log(`[DEBUG] LOGIN | name: ${req.body.name}`);
   config.connectDB().then(() => {
     User.findOne({
       $or: [{ name: req.body.name }, { mail: req.body.name }]
     }).then(user => {
       if (!user) {
+        console.log(`[DEBUG] LOGIN | user NOT FOUND | ${req.body.name}`);
         log.log("login", { name: req.body.name, succes: false });
         return res.status(401).json({ error: 'SERVER_USER_OR_PASS_INVALID' });
       }
 
+      console.log(`[DEBUG] LOGIN | user FOUND | name: ${user.name}`);
       bcrypt.compare(req.body.password, user.password).then(valid => {
         if (!valid) {
+          console.log(`[DEBUG] LOGIN | password INVALID`);
           log.log("login", { name: req.body.name, succes: false });
           return res.status(401).json({ error: 'SERVER_USER_OR_PASS_INVALID' });
         }
 
+        console.log(`[DEBUG] LOGIN | password OK`);
         user.login_date = new Date();
         user.save().then(() => {
           log.log("login", { name: req.body.name, succes: true });
 
           config.getTokenKey().then(tokenKey => {
+            const token = jwt.sign({ userId: user.name }, tokenKey, { expiresIn: '24h' });
+            console.log(`[DEBUG] LOGIN | SUCCESS | userId: ${user.name}`);
             res.status(201).json({
               userId: user.name,
-              token: jwt.sign(
-                { userId: user.name },
-                tokenKey,
-                { expiresIn: '24h' }
-              )
+              token: token
             });
-          }).catch(error => res.status(500).json({ error: "SERVER_READ_CONFIG_FAIL" }));
-        }).catch(error => res.status(500).json({ error: 'SERVER_DATABASE_UPDATE_FAIL' }));
-      }).catch(error => res.status(500).json({ error }));
-    }).catch(error => res.status(500).json({ error }));
-  }).catch(error => res.status(500).json({ error }));
+          }).catch(error => {
+            console.log(`[DEBUG] LOGIN | getTokenKey FAILED | ${error}`);
+            res.status(500).json({ error: "SERVER_READ_CONFIG_FAIL" });
+          });
+        }).catch(error => {
+          console.log(`[DEBUG] LOGIN | user.save FAILED | ${error}`);
+          res.status(500).json({ error: 'SERVER_DATABASE_UPDATE_FAIL' });
+        });
+      }).catch(error => {
+        console.log(`[DEBUG] LOGIN | bcrypt.compare FAILED | ${error}`);
+        res.status(500).json({ error });
+      });
+    }).catch(error => {
+      console.log(`[DEBUG] LOGIN | User.findOne FAILED | ${error}`);
+      res.status(500).json({ error });
+    });
+  }).catch(error => {
+    console.log(`[DEBUG] LOGIN | connectDB FAILED | ${error}`);
+    res.status(500).json({ error });
+  });
 }
 
 exports.registration = (req, res, next) => {
@@ -105,16 +123,25 @@ exports.getUserIdFromName = (name) => {
     config.connectDB().then(() => {
       User.findOne({ name: name }).then(user => {
         if (user) {
+          console.log(`[DEBUG] getUserIdFromName | OK | name: ${name} -> id: ${user._id}`);
           resolve(user._id);
         } else {
+          console.log(`[DEBUG] getUserIdFromName | NOT FOUND | name: ${name}`);
           reject();
         }
-      }).catch(error => reject(error));
-    }).catch(error => reject(error));
+      }).catch(error => {
+        console.log(`[DEBUG] getUserIdFromName | query FAILED | ${error}`);
+        reject(error);
+      });
+    }).catch(error => {
+      console.log(`[DEBUG] getUserIdFromName | connectDB FAILED | ${error}`);
+      reject(error);
+    });
   });
 }
 
 exports.checkValidUser = (req, res, next) => {
+  console.log(`[DEBUG] checkValidUser | OK`);
   res.status(200).json({});
 }
 

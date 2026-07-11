@@ -12,7 +12,7 @@ exports.add = (req, res, next) => {
   let fileUrl = `${folderUrl}/${fileName}`;
 
   if (!fs.existsSync(folderUrl)) {
-    fs.mkdirSync(folderUrl);
+    fs.mkdirSync(folderUrl, { recursive: true });
   }
 
   fs.writeFile(fileUrl, req.body.fileContent, { encoding: 'utf8' }, function(err) {

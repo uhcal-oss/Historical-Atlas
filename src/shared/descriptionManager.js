@@ -49,7 +49,7 @@ class DescriptionManager
 			  me.description = me.params.description;
 			  me.dialog.dialog("close");
 
-			  if(me.pendingSave) {
+			  if(me.mapName && me.mapName.length > 0) {
 				  me.pendingSave = false;
 				  me.loadSaveManager.save(me.mapName);
 			  }
