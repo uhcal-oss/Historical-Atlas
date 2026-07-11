@@ -877,3 +877,37 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
 }
+
+/* Responsive dialog elements */
+@media (max-width: 480px) {
+  #dialog-description, #dialog-login {
+    padding: 10px !important;
+  }
+
+  #map-name-settings-div input {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  #description-text textarea {
+    width: 100% !important;
+    box-sizing: border-box;
+    height: 100px;
+  }
+
+  .ui-dialog {
+    max-width: 95vw !important;
+  }
+
+  #type-map-choise label, #language-choise label {
+    display: inline-block;
+    margin-bottom: 5px;
+    padding: 5px;
+    background: #eee;
+    border-radius: 4px;
+  }
+
+  #privacy-choise {
+    flex-wrap: wrap;
+  }
+}

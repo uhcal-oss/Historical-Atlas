@@ -395,10 +395,14 @@ class LoadSaveManager
   initLoginDialog()
   {
     let me = this;
+    let width = 350;
+    if($(window).width() < 480) {
+      width = $(window).width() - 20;
+    }
     this.loginDialog = $("#dialog-login").dialog({
       autoOpen: false,
       height: 300,
-      width: 350,
+      width: width,
       modal: true,
       buttons: {
         "Login": function() {
